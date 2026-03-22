@@ -1,0 +1,960 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>EEG-Befundung Intensiv · ACNS / DGKN</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f3f4f6;--surf:#fff;--surf2:#f7f8fa;
+  --line:#dde1e7;--line2:#c4cad3;
+  --txt:#1c2028;--dim:#5a6070;--muted:#8a909a;
+  --blue:#1a56a0;--blue-l:#e6eef8;--blue-d:#0d3b7a;
+  --green:#186a50;--green-l:#e8f5f0;
+  --orange:#b84000;--orange-l:#fef3ec;
+  --purple:#6b35a0;--purple-l:#f3edf9;
+  --red:#9a2020;--red-l:#fdf0f0;
+  --amber:#7a5800;--amber-l:#fdf6e3;
+  --dgkn:#1a6640;--dgkn-l:#eaf5ee;
+  --f:'IBM Plex Sans',system-ui,sans-serif;
+  --m:'IBM Plex Mono','Courier New',monospace;
+}
+html,body{min-height:100%;font-family:var(--f);font-size:13px;color:var(--txt);background:var(--bg)}
+
+/* ── All hidden inputs ── */
+.pr{display:none}
+
+/* ── PILL styling: input immediately precedes label.pill ── */
+input[type=radio].pr:checked  + label.pill{background:var(--blue)!important;border-color:var(--blue)!important;color:#fff!important}
+input[type=checkbox].pr:checked + label.pill{background:var(--green)!important;border-color:var(--green)!important;color:#fff!important}
+input[type=checkbox].pr.dgkn:checked + label.pill{background:var(--dgkn)!important;border-color:var(--dgkn)!important;color:#fff!important}
+input[type=radio].pr:checked  + label.pill.mode-lbl-btn{background:var(--blue);color:#fff}
+
+.pill{
+  padding:2px 9px;border-radius:10px;
+  border:1px solid var(--line2);font-size:11px;
+  cursor:pointer;background:#fff;color:var(--dim);
+  display:inline-block;user-select:none;line-height:1.7;
+  transition:border-color .1s,color .1s
+}
+.pill:hover{border-color:#999;color:var(--txt)}
+
+/* ── ROW TOGGLE: checkbox + .ri sibling ── */
+.rtog{
+  appearance:none;-webkit-appearance:none;
+  width:15px;height:15px;border:1.5px solid #bbb;border-radius:3px;
+  cursor:pointer;background:#fff;flex-shrink:0;margin-top:2px;
+  position:relative;display:inline-block;transition:all .12s;vertical-align:middle
+}
+.rtog:checked{background:var(--blue);border-color:var(--blue)}
+.rtog:checked::after{
+  content:'';position:absolute;left:3px;top:0px;
+  width:5px;height:9px;border:2px solid #fff;
+  border-top:none;border-left:none;transform:rotate(40deg)
+}
+/* dim row content when toggle is off */
+.rtog:not(:checked) ~ .ri{opacity:.3;pointer-events:none}
+
+/* ── MODE SWITCH ── */
+/* mode radios live at top of body before everything — body:has() works */
+#mode-acns:checked ~ * label[for="mode-acns"],
+body:has(#mode-acns:checked) label[for="mode-acns"]{background:var(--blue);color:#fff;font-weight:600}
+body:has(#mode-dgkn:checked) label[for="mode-dgkn"]{background:var(--blue);color:#fff;font-weight:600}
+/* DGKN sections */
+.dgkn-only{display:none}
+body:has(#mode-dgkn:checked) .dgkn-only{display:block}
+body:has(#mode-dgkn:checked) #grad-bar{display:flex}
+
+/* ── A-MODS: dim when "keine" selected ── */
+body:has(#mtyp-keine:checked) #a-mods{opacity:.35;pointer-events:none}
+
+/* ── LOK CONDITIONALS ── */
+#cG,#cL,#cBI{display:none}
+body:has(#lok-G:checked)  #cG{display:block}
+body:has(#lok-L:checked)  #cL{display:block}
+body:has(#lok-BI:checked) #cBI{display:block}
+body:has(#lok-Mf:checked) #cBI{display:block}
+
+/* ── LAYOUT ── */
+.hdr{background:var(--txt);color:#fff;padding:9px 20px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.hdr-l{display:flex;flex-direction:column;gap:1px}
+.hdr-t{font-size:13px;font-weight:600;letter-spacing:.04em}
+.hdr-s{font-size:10px;opacity:.5;font-family:var(--m)}
+.hdr-r{display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+.ref{font-family:var(--m);font-size:10px;opacity:.6}
+
+.modebar{background:var(--surf2);border-bottom:1px solid var(--line);padding:6px 20px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.bar-lbl{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.mode-tog{display:flex;border:1px solid var(--line2);border-radius:4px;overflow:hidden}
+.mode-lbl-btn{font-family:var(--m);font-size:11px;padding:5px 14px;background:var(--surf);color:var(--dim);cursor:pointer;border-right:1px solid var(--line2);display:inline-block}
+.mode-lbl-btn:last-of-type{border-right:none}
+.sep{width:1px;height:18px;background:var(--line2)}
+.plaus-area{display:flex;gap:5px;flex-wrap:wrap;align-items:center;flex:1;min-height:24px}
+.pi{font-size:11px;padding:3px 9px;border-radius:10px}
+.pi.ok{background:var(--green-l);color:var(--green);border:1px solid #a0d8c0}
+.pi.warn{background:var(--amber-l);color:var(--amber);border:1px solid #ddd090}
+.pi.err{background:var(--red-l);color:var(--red);border:1px solid #e0b0b0}
+
+.layout{display:flex;min-height:calc(100vh - 94px);gap:1px;background:var(--line)}
+.form-col{flex:1;overflow-y:auto;padding:14px 20px;background:var(--surf)}
+.out-col{width:320px;flex-shrink:0;background:var(--surf);display:flex;flex-direction:column;position:sticky;top:0;max-height:calc(100vh - 94px);overflow-y:auto}
+
+/* ── SECTIONS via <details> ── */
+details{margin-bottom:12px}
+details > summary{
+  display:flex;align-items:center;gap:7px;
+  padding:6px 8px;border-radius:4px;cursor:pointer;
+  user-select:none;margin-bottom:6px;list-style:none
+}
+details > summary::-webkit-details-marker{display:none}
+details > summary::marker{display:none}
+.sec-let{width:20px;height:20px;border-radius:3px;font-size:10px;font-weight:700;color:#fff;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.sec-name{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;flex:1}
+.sec-tag{font-size:9px;padding:2px 6px;border-radius:3px;font-family:var(--m)}
+.tag-a{background:var(--blue-l);color:var(--blue)}
+.tag-d{background:var(--dgkn-l);color:var(--dgkn)}
+.arrow{font-size:10px;color:var(--muted);transition:transform .15s;display:inline-block}
+details:not([open]) .arrow{transform:rotate(-90deg)}
+.sec-a > summary{background:var(--blue-l)}.sec-a .sec-let{background:var(--blue)}.sec-a .sec-name{color:var(--blue)}
+.sec-d > summary{background:var(--orange-l)}.sec-d .sec-let{background:var(--orange)}.sec-d .sec-name{color:var(--orange)}
+.sec-c > summary{background:var(--purple-l)}.sec-c .sec-let{background:var(--purple)}.sec-c .sec-name{color:var(--purple)}
+.sec-g > summary{background:var(--dgkn-l)}.sec-g .sec-let{background:var(--dgkn)}.sec-g .sec-name{color:var(--dgkn)}
+
+/* ── ROWS ── */
+.rw{display:flex;align-items:start;gap:6px;padding:5px 0;border-bottom:1px solid var(--bg)}
+.rw.wide{display:block;padding:6px 0;border-bottom:1px solid var(--bg)}
+.rlbl{font-size:12px;font-weight:500;padding-top:2px;color:var(--txt);min-width:146px;flex-shrink:0;cursor:pointer}
+.rlbl.req{font-style:italic;color:var(--dim)}
+.ri{display:flex;flex-direction:column;gap:3px}
+.pg{display:flex;flex-wrap:wrap;gap:3px;padding-top:1px}
+.rnote{font-size:10px;color:var(--muted);font-style:italic;display:block;margin-bottom:4px}
+hr.dv{border:none;border-top:1px dashed var(--line);margin:7px 0}
+
+/* ── INDENT ── */
+.indent{border-left:2px solid var(--line);padding:4px 0 4px 12px;margin:3px 0 4px 22px}
+.indent-t{font-size:10px;font-style:italic;color:var(--muted);margin-bottom:4px}
+.sr{display:flex;align-items:flex-start;gap:8px;padding:3px 0;border-bottom:1px solid var(--bg)}
+.sr-l{font-size:11px;color:var(--dim);min-width:96px;padding-top:2px;flex-shrink:0}
+
+select,input[type=number]{font-family:var(--f);font-size:12px;padding:3px 7px;border:1px solid var(--line2);border-radius:4px;color:var(--txt);background:#fff}
+select:focus{outline:none;border-color:var(--blue)}
+textarea{font-family:var(--f);font-size:12px;padding:6px 8px;border:1px solid var(--line);border-radius:4px;resize:vertical;color:var(--txt);background:#fff;width:100%}
+
+/* ── OUTPUT ── */
+.out-hd{padding:9px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.out-hd-t{font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+#char-ct{font-family:var(--m);font-size:10px;color:var(--muted)}
+#out{padding:12px 14px;font-family:var(--m);font-size:11px;line-height:1.9;white-space:pre-wrap;color:var(--muted);background:var(--surf2);font-style:italic;flex:1;min-height:120px}
+#out.has-content{color:var(--txt);font-style:normal}
+.grad-bar{padding:6px 14px;border-top:1px solid var(--line);display:none;align-items:center;gap:8px}
+.gpill{font-family:var(--m);font-size:11px;padding:3px 12px;border-radius:3px;border:1px solid var(--line2);color:var(--muted);background:var(--surf2)}
+.gpill.gn{border-color:var(--green);color:var(--green);background:var(--green-l)}
+.gpill.g1{border-color:#c89040;color:#7a5800;background:var(--amber-l)}
+.gpill.g2{border-color:#c07030;color:#7a4000;background:#fdf0e6}
+.gpill.g3{border-color:var(--red);color:var(--red);background:var(--red-l)}
+.out-edit{padding:10px 14px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:7px}
+.btn-gen{background:var(--blue);color:#fff;border:none;padding:8px 0;border-radius:5px;font-family:var(--f);font-size:12px;font-weight:600;cursor:pointer;width:100%}
+.btn-gen:hover{background:var(--blue-d)}
+.edit-lbl{font-size:10px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+#ea{font-family:var(--m);font-size:11px;line-height:1.6;background:var(--surf2);border:1px solid var(--line);border-radius:4px;padding:7px 9px;min-height:80px}
+.btns-row{display:flex;gap:6px;align-items:center}
+.btn-sm{font-family:var(--f);font-size:11px;cursor:pointer;padding:5px 10px;border-radius:4px;border:1px solid;background:transparent}
+.btn-cp{color:var(--blue);border-color:var(--blue)}.btn-cp:hover{background:var(--blue-l)}
+.btn-rs{color:var(--dim);border-color:var(--line2)}.btn-rs:hover{border-color:#999}
+#ok-msg{font-size:11px;color:var(--green);display:none}
+.foot{padding:5px 14px;display:flex;align-items:center;justify-content:flex-end;gap:5px;border-top:1px solid var(--line)}
+.foot span{font-family:var(--m);font-size:10px;color:var(--muted)}
+.foot .fn{color:var(--dim);font-weight:500}
+
+@media(max-width:820px){.layout{flex-direction:column}.out-col{width:100%;position:static;max-height:none}}
+</style>
+</head>
+<body>
+
+<!-- ══ MODE RADIOS: must be at top of body for body:has() to work ══ -->
+<input type="radio" class="pr" name="mode" id="mode-acns" value="acns" checked>
+<input type="radio" class="pr" name="mode" id="mode-dgkn" value="dgkn">
+
+<!-- ══ HEADER ══ -->
+<header class="hdr">
+  <div class="hdr-l">
+    <span class="hdr-t">EEG-Befundung · Intensivstation</span>
+    <span class="hdr-s">ACNS Standardized Critical Care EEG Terminology 2012 / 2021 &nbsp;·&nbsp; DGKN-Empfehlungen 2024</span>
+  </div>
+  <div class="hdr-r">
+    <span class="ref">Rémi &amp; Noachtar · Klin Neurophysiol 2020;51:e1–e17</span>
+    <span class="ref">Hirsch et al. · J Clin Neurophysiol 2013;30:1–27</span>
+  </div>
+</header>
+
+<!-- ══ MODE BAR + PLAUSIBILITY ══ -->
+<div class="modebar">
+  <span class="bar-lbl">Modus</span>
+  <div class="mode-tog">
+    <label for="mode-acns" class="mode-lbl-btn">ACNS</label>
+    <label for="mode-dgkn" class="mode-lbl-btn">ACNS + DGKN</label>
+  </div>
+  <div class="sep"></div>
+  <span class="bar-lbl">Plausibilität</span>
+  <div class="plaus-area" id="plaus-area">
+    <span class="pi ok" id="pi-ok">— nach Generierung</span>
+  </div>
+</div>
+
+<!-- ══ MAIN LAYOUT ══ -->
+<div class="layout">
+<div class="form-col">
+
+<!-- ═════════════════════════════════════
+     SECTION A — Rhythmische/Periodische Muster
+     ═════════════════════════════════════ -->
+<details class="sec-a" open>
+<summary>
+  <span class="sec-let">A</span>
+  <span class="sec-name">Rhythmische &amp; Periodische Muster</span>
+  <span class="sec-tag tag-a">ACNS Kat. A</span>
+  <span class="arrow">▾</span>
+</summary>
+
+<!-- MUSTERTYP — outside a-mods, always clickable -->
+<div class="rw wide">
+  <span class="rnote">Mustertyp — „keine" sperrt alle Modifikatoren</span>
+  <div class="pg">
+    <input type="radio" class="pr" name="mtyp" id="mtyp-keine"  value="keine rhythmischen/periodischen Muster" checked><label class="pill" for="mtyp-keine">— keine —</label>
+    <input type="radio" class="pr" name="mtyp" id="mtyp-pds"   value="PDs"><label class="pill" for="mtyp-pds">PDs</label>
+    <input type="radio" class="pr" name="mtyp" id="mtyp-rda"   value="RDA"><label class="pill" for="mtyp-rda">RDA</label>
+    <input type="radio" class="pr" name="mtyp" id="mtyp-sw"    value="SW"><label class="pill" for="mtyp-sw">SW</label>
+    <input type="radio" class="pr" name="mtyp" id="mtyp-lpds"  value="LPDs"><label class="pill" for="mtyp-lpds">LPDs</label>
+    <input type="radio" class="pr" name="mtyp" id="mtyp-gpds"  value="GPDs"><label class="pill" for="mtyp-gpds">GPDs</label>
+    <input type="radio" class="pr" name="mtyp" id="mtyp-bipds" value="BIPDs"><label class="pill" for="mtyp-bipds">BIPDs</label>
+    <input type="radio" class="pr" name="mtyp" id="mtyp-lrda"  value="LRDA"><label class="pill" for="mtyp-lrda">LRDA</label>
+    <input type="radio" class="pr" name="mtyp" id="mtyp-grda"  value="GRDA"><label class="pill" for="mtyp-grda">GRDA</label>
+    <input type="radio" class="pr" name="mtyp" id="mtyp-gsw"   value="GSW"><label class="pill" for="mtyp-gsw">GSW</label>
+    <input type="radio" class="pr" name="mtyp" id="mtyp-lsw"   value="LSW"><label class="pill" for="mtyp-lsw">LSW</label>
+    <input type="radio" class="pr" name="mtyp" id="mtyp-iic"   value="IIC"><label class="pill" for="mtyp-iic">IIC</label>
+    <input type="radio" class="pr" name="mtyp" id="mtyp-anfall" value="Anfallsmuster"><label class="pill" for="mtyp-anfall">Anfallsmuster</label>
+  </div>
+</div>
+
+<!-- A-MODS: dimmed via CSS body:has(#mtyp-keine:checked) -->
+<div id="a-mods">
+
+  <!-- Lokalisation -->
+  <div class="rw">
+    <span class="rlbl req">Lokalisation</span>
+    <div class="pg">
+      <input type="radio" class="pr" name="lok" id="lok-G"  value="G" checked><label class="pill" for="lok-G">G — generalisiert</label>
+      <input type="radio" class="pr" name="lok" id="lok-L"  value="L"><label class="pill" for="lok-L">L — lateralisiert</label>
+      <input type="radio" class="pr" name="lok" id="lok-BI" value="BI"><label class="pill" for="lok-BI">BI — bilateral unabh.</label>
+      <input type="radio" class="pr" name="lok" id="lok-Mf" value="Mf"><label class="pill" for="lok-Mf">Mf — multifokal</label>
+    </div>
+  </div>
+
+  <!-- Conditional: G — shown via body:has(#lok-G:checked) -->
+  <div class="indent" id="cG">
+    <div class="indent-t">Bei G:</div>
+    <div class="sr">
+      <span class="sr-l">Betonung</span>
+      <select id="gBet">
+        <option value="">— ohne Spezifizierung</option>
+        <option>frontal betont</option><option>occipital betont</option><option>Mittellinie betont</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Conditional: L -->
+  <div class="indent" id="cL">
+    <div class="indent-t">Bei L:</div>
+    <div class="sr">
+      <span class="sr-l">Seite</span>
+      <div class="pg">
+        <input type="radio" class="pr" name="lS" id="lS-li" value="links" checked><label class="pill" for="lS-li">links</label>
+        <input type="radio" class="pr" name="lS" id="lS-re" value="rechts"><label class="pill" for="lS-re">rechts</label>
+      </div>
+    </div>
+    <div class="sr">
+      <span class="sr-l">Typ</span>
+      <div class="pg">
+        <input type="radio" class="pr" name="lT" id="lT-uni" value="unilateral" checked><label class="pill" for="lT-uni">unilateral</label>
+        <input type="radio" class="pr" name="lT" id="lT-bi"  value="bilateral asymmetrisch"><label class="pill" for="lT-bi">bilateral asymmetrisch</label>
+      </div>
+    </div>
+    <div class="sr">
+      <span class="sr-l">Region</span>
+      <div class="pg">
+        <input type="checkbox" class="pr" name="lReg" id="lReg-F" value="F"><label class="pill" for="lReg-F">F</label>
+        <input type="checkbox" class="pr" name="lReg" id="lReg-T" value="T"><label class="pill" for="lReg-T">T</label>
+        <input type="checkbox" class="pr" name="lReg" id="lReg-P" value="P"><label class="pill" for="lReg-P">P</label>
+        <input type="checkbox" class="pr" name="lReg" id="lReg-O" value="O"><label class="pill" for="lReg-O">O</label>
+        <input type="checkbox" class="pr" name="lReg" id="lReg-hem" value="hemisphärisch"><label class="pill" for="lReg-hem">hemisphärisch</label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Conditional: BI/Mf -->
+  <div class="indent" id="cBI">
+    <div class="indent-t">Bei BI / Mf:</div>
+    <div class="sr">
+      <span class="sr-l">Symmetrie</span>
+      <div class="pg">
+        <input type="radio" class="pr" name="biSy" id="biSy-sym"  value="symmetrisch" checked><label class="pill" for="biSy-sym">symmetrisch</label>
+        <input type="radio" class="pr" name="biSy" id="biSy-asym" value="asymmetrisch"><label class="pill" for="biSy-asym">asymmetrisch</label>
+      </div>
+    </div>
+  </div>
+
+  <hr class="dv">
+
+  <!-- Prävalenz -->
+  <div class="rw">
+    <input type="checkbox" class="rtog" id="t-pr" checked>
+    <label class="rlbl" for="t-pr">Prävalenz</label>
+    <div class="ri">
+      <select id="s-pr">
+        <option>kontinuierlich (≥90%)</option><option>sehr häufig (50–89%)</option>
+        <option>häufig (10–49%)</option><option>gelegentlich (1–9%)</option><option>selten (&lt;1%)</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Frequenz -->
+  <div class="rw">
+    <input type="checkbox" class="rtog" id="t-fq" checked>
+    <label class="rlbl" for="t-fq">Frequenz</label>
+    <div class="ri" style="flex-direction:row;align-items:center;gap:5px;flex-wrap:wrap">
+      <select id="s-fqMin">
+        <option>&lt;0,5/s</option><option>0,5/s</option><option selected>1/s</option>
+        <option>1,5/s</option><option>2/s</option><option>2,5/s</option><option>3/s</option><option>≥4/s</option>
+      </select>
+      <span style="color:var(--muted);font-size:11px">–</span>
+      <select id="s-fqMax">
+        <option value="">—</option><option>0,5/s</option><option>1/s</option><option>1,5/s</option>
+        <option>2/s</option><option>2,5/s</option><option>3/s</option><option>≥4/s</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Schärfe -->
+  <div class="rw">
+    <input type="checkbox" class="rtog" id="t-sh" checked>
+    <label class="rlbl" for="t-sh">Schärfe</label>
+    <div class="ri">
+      <div class="pg">
+        <input type="radio" class="pr" name="sh" id="sh-stumpf" value="stumpf" checked><label class="pill" for="sh-stumpf">stumpf</label>
+        <input type="radio" class="pr" name="sh" id="sh-sk"     value="scharf kontouriert"><label class="pill" for="sh-sk">scharf kontouriert</label>
+        <input type="radio" class="pr" name="sh" id="sh-s"      value="scharf (70–200ms)"><label class="pill" for="sh-s">scharf</label>
+        <input type="radio" class="pr" name="sh" id="sh-sp"     value="spitz (&lt;70ms)"><label class="pill" for="sh-sp">spitz</label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Amplitude abs -->
+  <div class="rw">
+    <input type="checkbox" class="rtog" id="t-am" checked>
+    <label class="rlbl" for="t-am">Amplitude (abs.)</label>
+    <div class="ri">
+      <div class="pg">
+        <input type="radio" class="pr" name="am" id="am-sn" value="sehr niedrig (&lt;20µV)"><label class="pill" for="am-sn">sehr niedrig &lt;20µV</label>
+        <input type="radio" class="pr" name="am" id="am-ni" value="niedrig (20–49µV)"><label class="pill" for="am-ni">niedrig 20–49µV</label>
+        <input type="radio" class="pr" name="am" id="am-mi" value="mittel (50–199µV)" checked><label class="pill" for="am-mi">mittel 50–199µV</label>
+        <input type="radio" class="pr" name="am" id="am-ho" value="hoch (≥200µV)"><label class="pill" for="am-ho">hoch ≥200µV</label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Amplitude rel (PDs) -->
+  <div class="rw">
+    <input type="checkbox" class="rtog" id="t-ar">
+    <label class="rlbl" for="t-ar">Ampl. relativ (PDs)</label>
+    <div class="ri">
+      <div class="pg">
+        <input type="radio" class="pr" name="ar" id="ar-le" value="≤2" checked><label class="pill" for="ar-le">≤ 2</label>
+        <input type="radio" class="pr" name="ar" id="ar-gt" value=">2"><label class="pill" for="ar-gt">&gt; 2</label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Verlauf -->
+  <div class="rw">
+    <input type="checkbox" class="rtog" id="t-vl" checked>
+    <label class="rlbl" for="t-vl">Verlauf</label>
+    <div class="ri">
+      <div class="pg">
+        <input type="radio" class="pr" name="vl" id="vl-st"  value="stabil" checked><label class="pill" for="vl-st">stabil</label>
+        <input type="radio" class="pr" name="vl" id="vl-fl"  value="fluktuierend"><label class="pill" for="vl-fl">fluktuierend</label>
+        <input type="radio" class="pr" name="vl" id="vl-ev"  value="mit Evolution"><label class="pill" for="vl-ev">mit Evolution</label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Plus -->
+  <div class="rw">
+    <input type="checkbox" class="rtog" id="t-pl">
+    <label class="rlbl" for="t-pl">Plus-Modifikator</label>
+    <div class="ri">
+      <div class="pg">
+        <input type="radio" class="pr" name="pl" id="pl-kein" value="kein +" checked><label class="pill" for="pl-kein">kein +</label>
+        <input type="radio" class="pr" name="pl" id="pl-f"    value="+F"><label class="pill" for="pl-f">+F</label>
+        <input type="radio" class="pr" name="pl" id="pl-r"    value="+R (nur PDs)"><label class="pill" for="pl-r">+R (nur PDs)</label>
+        <input type="radio" class="pr" name="pl" id="pl-s"    value="+S (nur RDA)"><label class="pill" for="pl-s">+S (nur RDA)</label>
+        <input type="radio" class="pr" name="pl" id="pl-fr"   value="+FR"><label class="pill" for="pl-fr">+FR</label>
+        <input type="radio" class="pr" name="pl" id="pl-fs"   value="+FS"><label class="pill" for="pl-fs">+FS</label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phasenzahl -->
+  <div class="rw">
+    <input type="checkbox" class="rtog" id="t-ph">
+    <label class="rlbl" for="t-ph">Phasenzahl</label>
+    <div class="ri">
+      <div class="pg">
+        <input type="radio" class="pr" name="ph" id="ph-1"  value="1-phasig"><label class="pill" for="ph-1">1</label>
+        <input type="radio" class="pr" name="ph" id="ph-2"  value="2-phasig" checked><label class="pill" for="ph-2">2</label>
+        <input type="radio" class="pr" name="ph" id="ph-3"  value="3-phasig"><label class="pill" for="ph-3">3</label>
+        <input type="radio" class="pr" name="ph" id="ph-p3" value=">3-phasig"><label class="pill" for="ph-p3">&gt;3</label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Polarität -->
+  <div class="rw">
+    <input type="checkbox" class="rtog" id="t-po">
+    <label class="rlbl" for="t-po">Polarität</label>
+    <div class="ri">
+      <div class="pg">
+        <input type="radio" class="pr" name="po" id="po-neg" value="negativ" checked><label class="pill" for="po-neg">negativ</label>
+        <input type="radio" class="pr" name="po" id="po-pos" value="positiv"><label class="pill" for="po-pos">positiv</label>
+        <input type="radio" class="pr" name="po" id="po-dip" value="Dipol"><label class="pill" for="po-dip">Dipol</label>
+        <input type="radio" class="pr" name="po" id="po-unb" value="unbestimmt"><label class="pill" for="po-unb">unbestimmt</label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stimulus -->
+  <div class="rw">
+    <input type="checkbox" class="rtog" id="t-si">
+    <label class="rlbl" for="t-si">Stimulus</label>
+    <div class="ri">
+      <div class="pg">
+        <input type="radio" class="pr" name="si" id="si-sp"  value="spontan" checked><label class="pill" for="si-sp">spontan</label>
+        <input type="radio" class="pr" name="si" id="si-ind" value="stimulusinduziert (SI)"><label class="pill" for="si-ind">stimulusinduziert (SI)</label>
+        <input type="radio" class="pr" name="si" id="si-unk" value="unbekannt"><label class="pill" for="si-unk">unbekannt</label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Triphasisch -->
+  <div class="rw">
+    <input type="checkbox" class="rtog" id="t-trm">
+    <label class="rlbl" for="t-trm">Triphasisch</label>
+    <div class="ri">
+      <div class="pg">
+        <input type="radio" class="pr" name="trm" id="trm-n"  value="nein" checked><label class="pill" for="trm-n">nein</label>
+        <input type="radio" class="pr" name="trm" id="trm-ja" value="triphasische Morphologie"><label class="pill" for="trm-ja">ja</label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Beginn -->
+  <div class="rw">
+    <input type="checkbox" class="rtog" id="t-bg">
+    <label class="rlbl" for="t-bg">Beginn</label>
+    <div class="ri">
+      <div class="pg">
+        <input type="radio" class="pr" name="bg" id="bg-pl"  value="plötzlich (&lt;3s)" checked><label class="pill" for="bg-pl">plötzlich &lt;3s</label>
+        <input type="radio" class="pr" name="bg" id="bg-gr"  value="graduell"><label class="pill" for="bg-gr">graduell</label>
+      </div>
+    </div>
+  </div>
+
+  <!-- AP-Zeitversatz -->
+  <div class="rw">
+    <input type="checkbox" class="rtog" id="t-apz">
+    <label class="rlbl" for="t-apz">AP-Zeitversatz</label>
+    <div class="ri">
+      <div class="pg">
+        <input type="radio" class="pr" name="apz" id="apz-kein" value="kein" checked><label class="pill" for="apz-kein">kein</label>
+        <input type="radio" class="pr" name="apz" id="apz-vor"  value="vorhanden (&gt;100ms)"><label class="pill" for="apz-vor">vorhanden &gt;100ms</label>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /a-mods -->
+</details><!-- /sec-a -->
+
+<!-- ═════════════════════════════════════
+     SECTION D — Hintergrundaktivität
+     ═════════════════════════════════════ -->
+<details class="sec-d" open>
+<summary>
+  <span class="sec-let">D</span>
+  <span class="sec-name">Hintergrundaktivität</span>
+  <span class="sec-tag tag-a">ACNS Kat. D</span>
+  <span class="arrow">▾</span>
+</summary>
+
+  <div class="rw">
+    <input type="checkbox" class="rtog" id="t-gr" checked>
+    <label class="rlbl" for="t-gr">Grundrhythmus (α)</label>
+    <div class="ri"><div class="pg">
+      <input type="radio" class="pr" name="gr" id="gr-nv"  value="nicht vorhanden"><label class="pill" for="gr-nv">nicht vorh.</label>
+      <input type="radio" class="pr" name="gr" id="gr-80"  value="8,0 Hz"><label class="pill" for="gr-80">8,0</label>
+      <input type="radio" class="pr" name="gr" id="gr-85"  value="8,5 Hz"><label class="pill" for="gr-85">8,5</label>
+      <input type="radio" class="pr" name="gr" id="gr-90"  value="9,0 Hz" checked><label class="pill" for="gr-90">9,0</label>
+      <input type="radio" class="pr" name="gr" id="gr-95"  value="9,5 Hz"><label class="pill" for="gr-95">9,5</label>
+      <input type="radio" class="pr" name="gr" id="gr-100" value="10,0 Hz"><label class="pill" for="gr-100">10,0</label>
+      <input type="radio" class="pr" name="gr" id="gr-105" value="10,5 Hz"><label class="pill" for="gr-105">10,5</label>
+      <input type="radio" class="pr" name="gr" id="gr-110" value="11,0 Hz"><label class="pill" for="gr-110">11,0</label>
+    </div></div>
+  </div>
+
+  <div class="rw">
+    <input type="checkbox" class="rtog" id="t-sym">
+    <label class="rlbl" for="t-sym">Symmetrie</label>
+    <div class="ri"><div class="pg">
+      <input type="radio" class="pr" name="sym" id="sym-sy"  value="symmetrisch" checked><label class="pill" for="sym-sy">symmetrisch</label>
+      <input type="radio" class="pr" name="sym" id="sym-la"  value="leichte Asymmetrie"><label class="pill" for="sym-la">leicht asymm.</label>
+      <input type="radio" class="pr" name="sym" id="sym-aa"  value="ausgeprägte Asymmetrie"><label class="pill" for="sym-aa">ausgeprägt asymm.</label>
+    </div></div>
+  </div>
+
+  <div class="rw">
+    <input type="checkbox" class="rtog" id="t-hf">
+    <label class="rlbl" for="t-hf">Hintergrundfrequenz</label>
+    <div class="ri"><div class="pg">
+      <input type="radio" class="pr" name="hf" id="hf-ab" value="Alpha/Beta-dominant" checked><label class="pill" for="hf-ab">Alpha/Beta</label>
+      <input type="radio" class="pr" name="hf" id="hf-th" value="Theta-dominant"><label class="pill" for="hf-th">Theta</label>
+      <input type="radio" class="pr" name="hf" id="hf-de" value="Delta-dominant"><label class="pill" for="hf-de">Delta</label>
+      <input type="radio" class="pr" name="hf" id="hf-dt" value="Delta/Theta-dominant"><label class="pill" for="hf-dt">Delta/Theta</label>
+      <input type="radio" class="pr" name="hf" id="hf-su" value="supprimiert"><label class="pill" for="hf-su">supprimiert</label>
+    </div></div>
+  </div>
+
+  <div class="rw">
+    <input type="checkbox" class="rtog" id="t-apg">
+    <label class="rlbl" for="t-apg">AP-Gradient</label>
+    <div class="ri"><div class="pg">
+      <input type="radio" class="pr" name="apg" id="apg-v"  value="vorhanden" checked><label class="pill" for="apg-v">vorhanden</label>
+      <input type="radio" class="pr" name="apg" id="apg-nv" value="nicht vorhanden"><label class="pill" for="apg-nv">nicht vorhanden</label>
+      <input type="radio" class="pr" name="apg" id="apg-u"  value="umgekehrt"><label class="pill" for="apg-u">umgekehrt</label>
+    </div></div>
+  </div>
+
+  <div class="rw">
+    <input type="checkbox" class="rtog" id="t-va">
+    <label class="rlbl" for="t-va">Variabilität</label>
+    <div class="ri"><div class="pg">
+      <input type="radio" class="pr" name="va" id="va-v"  value="variabel" checked><label class="pill" for="va-v">variabel</label>
+      <input type="radio" class="pr" name="va" id="va-m"  value="monoton"><label class="pill" for="va-m">monoton</label>
+      <input type="radio" class="pr" name="va" id="va-u"  value="unklar"><label class="pill" for="va-u">unklar</label>
+    </div></div>
+  </div>
+
+  <div class="rw">
+    <input type="checkbox" class="rtog" id="t-re">
+    <label class="rlbl" for="t-re">Reagibilität</label>
+    <div class="ri"><div class="pg">
+      <input type="radio" class="pr" name="re" id="re-r"  value="reagibel" checked><label class="pill" for="re-r">reagibel</label>
+      <input type="radio" class="pr" name="re" id="re-a"  value="areaktiv"><label class="pill" for="re-a">areaktiv</label>
+      <input type="radio" class="pr" name="re" id="re-si" value="nur SIRPIDs"><label class="pill" for="re-si">nur SIRPIDs</label>
+      <input type="radio" class="pr" name="re" id="re-u"  value="unklar"><label class="pill" for="re-u">unklar</label>
+    </div></div>
+  </div>
+
+  <div class="rw">
+    <input type="checkbox" class="rtog" id="t-ko" checked>
+    <label class="rlbl" for="t-ko">Kontinuität</label>
+    <div class="ri"><div class="pg">
+      <input type="radio" class="pr" name="ko" id="ko-k"  value="kontinuierlich" checked><label class="pill" for="ko-k">kontinuierlich</label>
+      <input type="radio" class="pr" name="ko" id="ko-nk" value="nahezu kontinuierlich"><label class="pill" for="ko-nk">nahezu kont.</label>
+      <input type="radio" class="pr" name="ko" id="ko-dk" value="diskontinuierlich"><label class="pill" for="ko-dk">diskontinuierlich</label>
+      <input type="radio" class="pr" name="ko" id="ko-ba" value="Burst-Attenuation"><label class="pill" for="ko-ba">Burst-Attenuation</label>
+      <input type="radio" class="pr" name="ko" id="ko-bs" value="Burst-Suppression"><label class="pill" for="ko-bs">Burst-Suppression</label>
+      <input type="radio" class="pr" name="ko" id="ko-su" value="Suppression"><label class="pill" for="ko-su">Suppression</label>
+    </div></div>
+  </div>
+
+  <div class="rw">
+    <input type="checkbox" class="rtog" id="t-ahg" checked>
+    <label class="rlbl" for="t-ahg">Amplitude (HG)</label>
+    <div class="ri"><div class="pg">
+      <input type="radio" class="pr" name="ahg" id="ahg-n" value="normal" checked><label class="pill" for="ahg-n">normal</label>
+      <input type="radio" class="pr" name="ahg" id="ahg-l" value="niedrig (&lt;20µV)"><label class="pill" for="ahg-l">niedrig &lt;20µV</label>
+      <input type="radio" class="pr" name="ahg" id="ahg-s" value="supprimiert (&lt;10µV)"><label class="pill" for="ahg-s">supprimiert &lt;10µV</label>
+    </div></div>
+  </div>
+
+  <div class="rw">
+    <input type="checkbox" class="rtog" id="t-st">
+    <label class="rlbl" for="t-st">Schlaftransienten</label>
+    <div class="ri"><div class="pg">
+      <input type="radio" class="pr" name="st" id="st-n"  value="normal" checked><label class="pill" for="st-n">normal</label>
+      <input type="radio" class="pr" name="st" id="st-ab" value="vorhanden, abnormal"><label class="pill" for="st-ab">vorhanden, abnormal</label>
+      <input type="radio" class="pr" name="st" id="st-f"  value="fehlend"><label class="pill" for="st-f">fehlend</label>
+    </div></div>
+  </div>
+
+  <div class="rw">
+    <input type="checkbox" class="rtog" id="t-br">
+    <label class="rlbl" for="t-br">Breach rhythm</label>
+    <div class="ri"><div class="pg">
+      <input type="radio" class="pr" name="br" id="br-nv" value="nicht vorhanden" checked><label class="pill" for="br-nv">nicht vorhanden</label>
+      <input type="radio" class="pr" name="br" id="br-v"  value="vorhanden"><label class="pill" for="br-v">vorhanden</label>
+    </div></div>
+  </div>
+
+</details><!-- /sec-d -->
+
+<!-- ═════════════════════════════════════
+     SECTION C
+     ═════════════════════════════════════ -->
+<details class="sec-c" open>
+<summary>
+  <span class="sec-let">C</span>
+  <span class="sec-name">Sporadische epileptiforme Potenziale</span>
+  <span class="sec-tag tag-a">ACNS Kat. C</span>
+  <span class="arrow">▾</span>
+</summary>
+
+  <div class="rw">
+    <input type="checkbox" class="rtog" id="t-eq">
+    <label class="rlbl" for="t-eq">Häufigkeit</label>
+    <div class="ri"><div class="pg">
+      <input type="radio" class="pr" name="eq" id="eq-r" value="reichlich (≥1/10s)"><label class="pill" for="eq-r">reichlich</label>
+      <input type="radio" class="pr" name="eq" id="eq-h" value="häufig (≥1/min)" checked><label class="pill" for="eq-h">häufig</label>
+      <input type="radio" class="pr" name="eq" id="eq-g" value="gelegentlich (≥1/h)"><label class="pill" for="eq-g">gelegentlich</label>
+      <input type="radio" class="pr" name="eq" id="eq-s" value="selten (&lt;1/h)"><label class="pill" for="eq-s">selten</label>
+    </div></div>
+  </div>
+  <div class="rw">
+    <input type="checkbox" class="rtog" id="t-el">
+    <label class="rlbl" for="t-el">Lokalisation</label>
+    <div class="ri"><div class="pg">
+      <input type="radio" class="pr" name="el" id="el-g"  value="G"><label class="pill" for="el-g">G</label>
+      <input type="radio" class="pr" name="el" id="el-l"  value="L" checked><label class="pill" for="el-l">L</label>
+      <input type="radio" class="pr" name="el" id="el-bi" value="BI"><label class="pill" for="el-bi">BI</label>
+      <input type="radio" class="pr" name="el" id="el-mf" value="Mf"><label class="pill" for="el-mf">Mf</label>
+    </div></div>
+  </div>
+
+</details>
+
+<!-- ═════════════════════════════════════
+     DGKN SECTIONS
+     ═════════════════════════════════════ -->
+
+<!-- E1 Verlangsamungen -->
+<details class="sec-g dgkn-only" open>
+<summary>
+  <span class="sec-let">E1</span><span class="sec-name">Verlangsamungen</span>
+  <span class="sec-tag tag-d">DGKN</span><span class="arrow">▾</span>
+</summary>
+  <div class="rw wide"><div class="pg">
+    <input type="radio" class="pr" name="vt" id="vt-k"  value="keine" checked><label class="pill" for="vt-k">keine</label>
+    <input type="radio" class="pr" name="vt" id="vt-in" value="intermittierend"><label class="pill" for="vt-in">intermittierend</label>
+    <input type="radio" class="pr" name="vt" id="vt-ko" value="kontinuierlich"><label class="pill" for="vt-ko">kontinuierlich</label>
+  </div></div>
+  <div class="rw">
+    <input type="checkbox" class="rtog" id="t-vvert">
+    <label class="rlbl" for="t-vvert">Verteilung</label>
+    <div class="ri"><div class="pg">
+      <input type="checkbox" class="pr" name="vvert" id="vv-g"  value="generalisiert"><label class="pill" for="vv-g">generalisiert</label>
+      <input type="checkbox" class="pr" name="vvert" id="vv-ll" value="lat. links"><label class="pill" for="vv-ll">lat. li.</label>
+      <input type="checkbox" class="pr" name="vvert" id="vv-lr" value="lat. rechts"><label class="pill" for="vv-lr">lat. re.</label>
+      <input type="checkbox" class="pr" name="vvert" id="vv-tl" value="temporal li."><label class="pill" for="vv-tl">T li.</label>
+      <input type="checkbox" class="pr" name="vvert" id="vv-tr" value="temporal re."><label class="pill" for="vv-tr">T re.</label>
+      <input type="checkbox" class="pr" name="vvert" id="vv-fr" value="frontal"><label class="pill" for="vv-fr">frontal</label>
+      <input type="checkbox" class="pr" name="vvert" id="vv-ok" value="okzipital"><label class="pill" for="vv-ok">okzipital</label>
+    </div></div>
+  </div>
+</details>
+
+<!-- E2 ETM -->
+<details class="sec-g dgkn-only" open>
+<summary>
+  <span class="sec-let">E2</span><span class="sec-name">Epilepsietypische Muster</span>
+  <span class="sec-tag tag-d">DGKN</span><span class="arrow">▾</span>
+</summary>
+  <div class="rw wide"><div class="pg">
+    <input type="radio" class="pr" name="etm" id="etm-k"  value="keine ETM" checked><label class="pill" for="etm-k">keine</label>
+    <input type="radio" class="pr" name="etm" id="etm-sp" value="Spikes"><label class="pill" for="etm-sp">Spikes</label>
+    <input type="radio" class="pr" name="etm" id="etm-sw" value="Sharp Waves"><label class="pill" for="etm-sw">Sharp Waves</label>
+    <input type="radio" class="pr" name="etm" id="etm-sk" value="SW-Komplexe"><label class="pill" for="etm-sk">SW-Komplexe</label>
+    <input type="radio" class="pr" name="etm" id="etm-ps" value="Polyspikes"><label class="pill" for="etm-ps">Polyspikes</label>
+    <input type="radio" class="pr" name="etm" id="etm-pw" value="PSW"><label class="pill" for="etm-pw">PSW</label>
+  </div></div>
+  <div class="rw">
+    <input type="checkbox" class="rtog" id="t-etmv">
+    <label class="rlbl" for="t-etmv">Verteilung</label>
+    <div class="ri"><div class="pg">
+      <input type="checkbox" class="pr" name="etmv" id="ev-g"  value="G"><label class="pill" for="ev-g">G</label>
+      <input type="checkbox" class="pr" name="etmv" id="ev-ll" value="lat. li."><label class="pill" for="ev-ll">lat. li.</label>
+      <input type="checkbox" class="pr" name="etmv" id="ev-lr" value="lat. re."><label class="pill" for="ev-lr">lat. re.</label>
+      <input type="checkbox" class="pr" name="etmv" id="ev-tl" value="T li."><label class="pill" for="ev-tl">T li.</label>
+      <input type="checkbox" class="pr" name="etmv" id="ev-tr" value="T re."><label class="pill" for="ev-tr">T re.</label>
+      <input type="checkbox" class="pr" name="etmv" id="ev-fz" value="FZ"><label class="pill" for="ev-fz">FZ</label>
+      <input type="checkbox" class="pr" name="etmv" id="ev-ok" value="okzipital"><label class="pill" for="ev-ok">okzipital</label>
+    </div></div>
+  </div>
+</details>
+
+<!-- F Besondere Muster -->
+<details class="sec-g dgkn-only" open>
+<summary>
+  <span class="sec-let">F</span><span class="sec-name">Besondere Muster</span>
+  <span class="sec-tag tag-d">DGKN</span><span class="arrow">▾</span>
+</summary>
+  <div class="rw wide"><div class="pg">
+    <input type="checkbox" class="pr dgkn" name="bm" id="bm-tw"  value="Triphasische Wellen"><label class="pill" for="bm-tw">Triphasische Wellen</label>
+    <input type="checkbox" class="pr dgkn" name="bm" id="bm-fi"  value="FIRDA"><label class="pill" for="bm-fi">FIRDA</label>
+    <input type="checkbox" class="pr dgkn" name="bm" id="bm-ti"  value="TIRDA"><label class="pill" for="bm-ti">TIRDA</label>
+    <input type="checkbox" class="pr dgkn" name="bm" id="bm-oi"  value="OIRDA"><label class="pill" for="bm-oi">OIRDA</label>
+    <input type="checkbox" class="pr dgkn" name="bm" id="bm-st"  value="EEG-Stille"><label class="pill" for="bm-st">EEG-Stille</label>
+    <input type="checkbox" class="pr dgkn" name="bm" id="bm-br"  value="Breach-Rhythmus"><label class="pill" for="bm-br">Breach-Rhythmus</label>
+    <input type="checkbox" class="pr dgkn" name="bm" id="bm-ak"  value="Alpha-Koma"><label class="pill" for="bm-ak">Alpha-Koma</label>
+    <input type="checkbox" class="pr dgkn" name="bm" id="bm-sc"  value="Spindle-Coma"><label class="pill" for="bm-sc">Spindle-Coma</label>
+  </div></div>
+</details>
+
+<!-- H Beurteilung -->
+<details class="sec-g dgkn-only" open>
+<summary>
+  <span class="sec-let">H</span><span class="sec-name">Beurteilung</span>
+  <span class="sec-tag tag-d">DGKN</span><span class="arrow">▾</span>
+</summary>
+  <div style="font-size:11px;font-weight:600;color:var(--dgkn);margin:4px 0 5px">EEG-Grad</div>
+  <div class="pg">
+    <input type="radio" class="pr" name="grad" id="grad-n"  value="normal" data-gc="gn"><label class="pill" for="grad-n">Normal</label>
+    <input type="radio" class="pr" name="grad" id="grad-1"  value="Grad I" data-gc="g1" checked><label class="pill" for="grad-1">Path. Grad I</label>
+    <input type="radio" class="pr" name="grad" id="grad-2"  value="Grad II" data-gc="g2"><label class="pill" for="grad-2">Path. Grad II</label>
+    <input type="radio" class="pr" name="grad" id="grad-3"  value="Grad III" data-gc="g3"><label class="pill" for="grad-3">Path. Grad III</label>
+  </div>
+  <div style="font-size:11px;font-weight:600;color:var(--dgkn);margin:8px 0 5px">Klinische Einordnung (Mehrfach)</div>
+  <div class="pg">
+    <input type="checkbox" class="pr dgkn" name="klin" id="klin-ep"  value="Epilepsie"><label class="pill" for="klin-ep">Epilepsie</label>
+    <input type="checkbox" class="pr dgkn" name="klin" id="klin-en"  value="Enzephalopathie"><label class="pill" for="klin-en">Enzephalopathie</label>
+    <input type="checkbox" class="pr dgkn" name="klin" id="klin-fl"  value="fokale Läsion"><label class="pill" for="klin-fl">fokale Läsion</label>
+    <input type="checkbox" class="pr dgkn" name="klin" id="klin-se"  value="SE möglich (klin. Kontext!)"><label class="pill" for="klin-se">SE möglich</label>
+    <input type="checkbox" class="pr dgkn" name="klin" id="klin-kk"  value="kein EEG-Korrelat" checked><label class="pill" for="klin-kk">kein Korrelat</label>
+  </div>
+</details>
+
+<!-- Freitext -->
+<details open style="margin-bottom:14px">
+<summary style="display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:4px;cursor:pointer;background:#f5f5f5;margin-bottom:6px">
+  <span class="sec-let" style="background:#888">✎</span>
+  <span class="sec-name" style="color:#666">Kommentar</span>
+  <span class="arrow">▾</span>
+</summary>
+  <textarea id="ft" rows="3" placeholder="Ergänzende Bemerkungen, Artefakte, klinische Hinweise…"></textarea>
+</details>
+
+</div><!-- /form-col -->
+
+<!-- ═══ OUTPUT ═══ -->
+<div class="out-col">
+  <div class="out-hd">
+    <span class="out-hd-t">Befund-Output</span>
+    <span id="char-ct"></span>
+  </div>
+  <div id="out">Felder ausfüllen, dann „Befund generieren" klicken.</div>
+  <div class="grad-bar" id="grad-bar">
+    <div class="gpill" id="gp">—</div>
+    <span style="font-size:11px;color:var(--dim)" id="gl"></span>
+  </div>
+  <div class="out-edit">
+    <button class="btn-gen" id="btn-gen">⟳ Befund generieren</button>
+    <span class="edit-lbl">Bearbeitbarer Text</span>
+    <textarea id="ea" rows="8" style="font-family:var(--m);font-size:11px;line-height:1.6;background:var(--surf2);border:1px solid var(--line);border-radius:4px;padding:7px 9px"></textarea>
+    <div class="btns-row">
+      <button class="btn-sm btn-cp" id="btn-cp">Kopieren</button>
+      <span id="ok-msg">✓ Kopiert</span>
+      <button class="btn-sm btn-rs" id="btn-rs">Reset</button>
+    </div>
+  </div>
+  <div class="foot">
+    <span class="fn">Iyidilli A.U.</span><span>·</span>
+    <span>2026</span><span>·</span>
+    <span>Neurologisches Zentrum Bad Segeberg</span>
+  </div>
+</div>
+
+</div><!-- /layout -->
+
+<script>
+/* === Only JS needed: generate, copy, plausibility display === */
+
+function rv(name){
+  var el=document.querySelector('input[name="'+name+'"]:checked');
+  return el?el.value:'';
+}
+function cvs(name){
+  var els=document.querySelectorAll('input[name="'+name+'"]:checked');
+  var v=[];for(var i=0;i<els.length;i++)v.push(els[i].value);return v.join(', ');
+}
+function ron(id){var el=document.getElementById(id);return el&&el.checked;}
+function sv(id){var el=document.getElementById(id);return el?el.value:'';}
+function pad(n){return n<10?'0'+n:''+n;}
+
+function generate(){
+  var lines=[];
+  var isDGKN=rv('mode')==='dgkn';
+  var mtyp=rv('mtyp');
+  var noMuster=mtyp.indexOf('keine')>-1;
+
+  /* A */
+  var sA='[A] Rhythmische / Periodische Muster\n';
+  if(noMuster){
+    sA+='    Keine rhythmischen oder periodischen Muster.';
+  } else {
+    sA+='    Mustertyp: '+mtyp;
+    var lok=rv('lok');
+    var lokStr=lok;
+    if(lok==='G'){var b=sv('gBet');lokStr=b?'G ('+b+')':'G';}
+    else if(lok==='L'){
+      var s=rv('lS'),t=rv('lT'),r=cvs('lReg');
+      lokStr='L — '+s+(t==='bilateral asymmetrisch'?', bilateral asymm.':'')+(r?' ('+r+')':'');
+    } else if(lok==='BI'||lok==='Mf'){lokStr=lok+' ('+rv('biSy')+')';}
+    sA+='\n    Lokalisation: '+lokStr;
+    if(ron('t-pr'))  sA+='\n    Prävalenz: '+sv('s-pr');
+    if(ron('t-fq')){var mn=sv('s-fqMin'),mx=sv('s-fqMax');sA+='\n    Frequenz: '+mn+(mx?' – '+mx:'');}
+    if(ron('t-sh'))  sA+='\n    Schärfe: '+rv('sh');
+    if(ron('t-am'))  sA+='\n    Amplitude (abs.): '+rv('am');
+    if(ron('t-ar'))  sA+='\n    Amplitude (rel.): '+rv('ar');
+    if(ron('t-vl'))  sA+='\n    Verlauf: '+rv('vl');
+    if(ron('t-pl')){var pv=rv('pl');if(pv&&pv!=='kein +')sA+='\n    Plus: '+pv;}
+    if(ron('t-ph'))  sA+='\n    Phasenzahl: '+rv('ph');
+    if(ron('t-po'))  sA+='\n    Polarität: '+rv('po');
+    if(ron('t-si'))  sA+='\n    Stimulus: '+rv('si');
+    if(ron('t-trm')){var tv=rv('trm');if(tv&&tv!=='nein')sA+='\n    Morphologie: '+tv;}
+    if(ron('t-bg'))  sA+='\n    Beginn: '+rv('bg');
+    if(ron('t-apz')){var av=rv('apz');if(av&&av!=='kein')sA+='\n    AP-Zeitversatz: '+av;}
+  }
+  lines.push(sA);
+
+  /* D */
+  var sD='[D] Hintergrundaktivität';
+  if(ron('t-gr'))  sD+='\n    Grundrhythmus (α): '+rv('gr');
+  if(ron('t-sym')) sD+='\n    Symmetrie: '+rv('sym');
+  if(ron('t-hf'))  sD+='\n    Hintergrundfrequenz: '+rv('hf');
+  if(ron('t-apg')) sD+='\n    AP-Gradient: '+rv('apg');
+  if(ron('t-va'))  sD+='\n    Variabilität: '+rv('va');
+  if(ron('t-re'))  sD+='\n    Reagibilität: '+rv('re');
+  if(ron('t-ko'))  sD+='\n    Kontinuität: '+rv('ko');
+  if(ron('t-ahg')) sD+='\n    Amplitude (HG): '+rv('ahg');
+  if(ron('t-st'))  sD+='\n    Schlaftransienten: '+rv('st');
+  if(ron('t-br')){var bv=rv('br');if(bv&&bv!=='nicht vorhanden')sD+='\n    Breach rhythm: '+bv;}
+  lines.push(sD);
+
+  /* C */
+  if(ron('t-eq')||ron('t-el')){
+    var sC='[C] Sporadische epileptiforme Potenziale';
+    if(ron('t-eq'))sC+='\n    Häufigkeit: '+rv('eq');
+    if(ron('t-el'))sC+='\n    Lokalisation: '+rv('el');
+    lines.push(sC);
+  }
+
+  if(isDGKN){
+    var vt=rv('vt');
+    var sE1='[E1] Verlangsamungen\n    '+(vt||'—');
+    if(vt&&vt!=='keine'&&ron('t-vvert'))sE1+='\n    Verteilung: '+cvs('vvert');
+    lines.push(sE1);
+
+    var etm=rv('etm');
+    var sE2='[E2] Epilepsietypische Muster\n    '+(etm||'—');
+    if(etm&&etm!=='keine ETM'&&ron('t-etmv'))sE2+='\n    Verteilung: '+cvs('etmv');
+    lines.push(sE2);
+
+    var bms=cvs('bm');
+    if(bms)lines.push('[F] Besondere Muster\n    '+bms);
+
+    var grad=rv('grad');
+    var klin=cvs('klin');
+    var sH='[H] Beurteilung (DGKN)';
+    if(grad){
+      sH+='\n    EEG-Grad: '+grad;
+      var gc={normal:'gn','Grad I':'g1','Grad II':'g2','Grad III':'g3'};
+      var cl=gc[grad]||'';
+      var gp=document.getElementById('gp');
+      var gl=document.getElementById('gl');
+      gp.className='gpill '+cl;gp.textContent=grad;
+      var gd={normal:'Normalbefund','Grad I':'Leichte AV','Grad II':'Mäßige AV','Grad III':'Schwere AV'};
+      gl.textContent=gd[grad]||'';
+    }
+    if(klin)sH+='\n    Klinisch: '+klin;
+    lines.push(sH);
+  }
+
+  var ft=sv('ft');
+  if(ft)lines.push('[Kommentar]\n    '+ft);
+
+  /* Plausibility */
+  var issues=[];
+  if(!noMuster){
+    var mt=rv('mtyp'),ko=rv('ko'),ahg=rv('ahg'),pl=rv('pl');
+    var fqMin=sv('s-fqMin'),fqMax=sv('s-fqMax');
+    var isRDA=mt.indexOf('RDA')>-1,isSW=mt.indexOf('SW')>-1;
+    if(isRDA&&(fqMin==='≥4/s'||fqMax==='≥4/s'))
+      issues.push({c:'err',t:'RDA ≥4/s → Anfallsmuster (außerhalb ACNS)'});
+    if(ron('t-pl')&&pl==='+S (nur RDA)'&&!isRDA)
+      issues.push({c:'warn',t:'+S gilt nur für RDA'});
+    if(ron('t-pl')&&pl==='+R (nur PDs)'&&isRDA)
+      issues.push({c:'warn',t:'+R gilt nur für PDs'});
+    if(ron('t-pl')&&pl&&pl!=='kein +'&&isSW)
+      issues.push({c:'warn',t:'Plus-Modifikator nicht für SW'});
+    if((ko==='Burst-Suppression'||ko==='Suppression')&&ron('t-ahg')&&ahg==='normal')
+      issues.push({c:'err',t:ko+' + normale HG-Ampl. — inkonsistent'});
+  }
+  var pa=document.getElementById('plaus-area');
+  pa.innerHTML='';
+  if(issues.length===0){
+    pa.innerHTML='<span class="pi ok">✓ keine Probleme</span>';
+  } else {
+    for(var i=0;i<issues.length;i++){
+      var s=document.createElement('span');
+      s.className='pi '+issues[i].c;
+      s.textContent=issues[i].t;
+      pa.appendChild(s);
+    }
+  }
+
+  var d=new Date();
+  lines.push('Befundet: '+pad(d.getDate())+'.'+pad(d.getMonth()+1)+'.'+d.getFullYear()+'  '+pad(d.getHours())+':'+pad(d.getMinutes())+' Uhr');
+
+  var txt=lines.join('\n\n');
+  var outEl=document.getElementById('out');
+  outEl.className='has-content';
+  outEl.textContent=txt;
+  document.getElementById('ea').value=txt;
+  document.getElementById('char-ct').textContent=txt.length+' Zeichen';
+}
+
+function doCopy(){
+  var txt=document.getElementById('ea').value;
+  if(!txt)return;
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(txt).then(showOk,function(){fb(txt);});
+  } else { fb(txt); }
+}
+function fb(t){
+  var ta=document.createElement('textarea');
+  ta.value=t;ta.style.cssText='position:fixed;opacity:0;top:0;left:0';
+  document.body.appendChild(ta);ta.focus();ta.select();
+  try{document.execCommand('copy');showOk();}catch(e){}
+  document.body.removeChild(ta);
+}
+function showOk(){
+  var m=document.getElementById('ok-msg');
+  m.style.display='inline';
+  setTimeout(function(){m.style.display='none';},2000);
+}
+
+document.getElementById('btn-gen').addEventListener('click',generate);
+document.getElementById('btn-cp').addEventListener('click',doCopy);
+document.getElementById('btn-rs').addEventListener('click',function(){if(confirm('Reset?'))location.reload();});
+</script>
+</body>
+</html>
